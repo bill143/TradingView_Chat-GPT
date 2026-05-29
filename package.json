@@ -1,0 +1,23 @@
+{
+  "name": "tradingview-chat-gpt",
+  "version": "0.1.0",
+  "description": "MCP server that reads live TradingView Desktop charts at the data level over the Chrome DevTools Protocol, so an AI agent can talk about your actual price data.",
+  "type": "module",
+  "bin": {
+    "tradingview-mcp": "src/server.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "brief": "node scripts/morning_brief.js",
+    "health": "node scripts/health_check.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "chrome-remote-interface": "^0.33.3",
+    "zod": "^3.23.8"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,26 @@
+{
+  "watchlist": ["BITSTAMP:BTCUSD", "BITSTAMP:ETHUSD", "NASDAQ:AAPL"],
+  "default_timeframe": "D",
+  "strategy": {
+    "name": "Example trend-following",
+    "source": "default-active",
+    "pine_script_path": null
+  },
+  "indicators": {
+    "ema": [{ "length": 20 }, { "length": 50 }],
+    "rsi": [{ "length": 14 }],
+    "atr": [{ "length": 14 }]
+  },
+  "bias_criteria": {
+    "bullish": ["price above the 50 EMA", "RSI above 50"],
+    "bearish": ["price below the 50 EMA", "RSI below 50"],
+    "neutral": ["price chopping around the 50 EMA"]
+  },
+  "entry_rules": {
+    "long": ["RSI crosses above 50 while the 20 EMA is above the 50 EMA"],
+    "short": ["RSI crosses below 50 while the 20 EMA is below the 50 EMA"]
+  },
+  "exit_rules": ["EMAs cross back the other way", "2x ATR stop is hit"],
+  "risk_rules": ["risk 1% of account per trade"],
+  "notes": "Copy this file to rules.json and edit it to describe how you actually trade."
+}
