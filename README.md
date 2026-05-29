@@ -1,5 +1,7 @@
 # TradingView_Chat-GPT
 
+[![CI](https://github.com/bill143/TradingView_Chat-GPT/actions/workflows/ci.yml/badge.svg)](https://github.com/bill143/TradingView_Chat-GPT/actions/workflows/ci.yml)
+
 An [MCP](https://modelcontextprotocol.io) server that lets an AI agent (Codex,
 Claude, etc.) read and drive a **live TradingView Desktop chart at the data
 level** — real OHLC values off the chart, not screenshots or image recognition.
