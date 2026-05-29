@@ -69,6 +69,20 @@ handy on a cron:
 Environment variables: `TV_CDP_HOST`, `TV_CDP_PORT` (default 9222),
 `TV_RULES_PATH`, `TV_SETTLE_MS`.
 
+## Development & testing
+
+Tests use Node's built-in runner (no extra dependencies) and don't require a
+running TradingView — the CDP layer is exercised through its graceful
+not-connected path.
+
+```bash
+npm test       # run the full suite
+npm run check  # syntax-check the server + run tests
+```
+
+CI runs the same suite on Node 20 and 22 via GitHub Actions
+(`.github/workflows/ci.yml`).
+
 ## Caveats
 
 - The legend scrapers target TradingView's current DOM; UI changes may require

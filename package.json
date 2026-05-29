@@ -9,7 +9,9 @@
   "scripts": {
     "start": "node src/server.js",
     "brief": "node scripts/morning_brief.js",
-    "health": "node scripts/health_check.js"
+    "health": "node scripts/health_check.js",
+    "test": "node --test",
+    "check": "node --check src/server.js && node --test"
   },
   "engines": {
     "node": ">=20"
