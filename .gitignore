@@ -4,5 +4,7 @@ brief.log
 .DS_Store
 # User's own strategy file lives here once they create it from the template.
 rules.json
+# Super Trader's persisted paper-trading account.
+paper_state.json
 pine/*.pine
 !pine/.gitkeep
