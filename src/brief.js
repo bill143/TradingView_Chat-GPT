@@ -8,7 +8,7 @@
 
 import { setSymbol, setTimeframe, readQuote, readIndicatorValues } from "./tradingview.js";
 
-function classify(quote, indicators) {
+export function classify(quote, indicators) {
   const reasons = [];
   let score = 0;
 
