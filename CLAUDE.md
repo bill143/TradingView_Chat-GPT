@@ -6,16 +6,16 @@ chart legend), not via screenshots.
 
 ## Tools
 
-| Tool | What it does |
-|------|--------------|
-| `tv_health_check` | Confirm TradingView Desktop is reachable over CDP. Run this first. |
-| `chart_set_symbol` | Switch the chart to a ticker, e.g. `BITSTAMP:BTCUSD`. |
-| `chart_set_timeframe` | Change interval: `1,3,5,15,30,60,120,240,D,W,M`. |
+| Tool                     | What it does                                                                 |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `tv_health_check`        | Confirm TradingView Desktop is reachable over CDP. Run this first.           |
+| `chart_set_symbol`       | Switch the chart to a ticker, e.g. `BITSTAMP:BTCUSD`.                        |
+| `chart_set_timeframe`    | Change interval: `1,3,5,15,30,60,120,240,D,W,M`.                             |
 | `chart_manage_indicator` | Add an indicator. Use **full names** ("Relative Strength Index", not "RSI"). |
-| `chart_read` | Read active symbol + latest OHLC + indicator legend values. |
-| `strategy_apply` | Apply the whole `rules.json` strategy to one symbol. |
-| `morning_brief` | Walk the watchlist and return a bias + reasons + key levels per symbol. |
-| `strategy_plan_check` | Count indicators and check against a TradingView plan's per-chart limit. |
+| `chart_read`             | Read active symbol + latest OHLC + indicator legend values.                  |
+| `strategy_apply`         | Apply the whole `rules.json` strategy to one symbol.                         |
+| `morning_brief`          | Walk the watchlist and return a bias + reasons + key levels per symbol.      |
+| `strategy_plan_check`    | Count indicators and check against a TradingView plan's per-chart limit.     |
 
 ## The strategy file
 

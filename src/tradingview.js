@@ -5,20 +5,32 @@
 //   2. WRITES – drive the UI with synthesised keystrokes (symbol/timeframe/
 //               indicator changes), exactly as a human would type them.
 //
+// All functions take an injectable `io` (the CDP interface) as their last
+// argument, defaulting to the real connection. Tests pass a fake `io` to drive
+// the logic against a simulated chart without a running TradingView.
+//
 // NOTE ON FRAGILITY: TradingView ships UI changes regularly and its internal
 // chart model is not a public API. The selectors below target the on-chart
 // legend, which is the most stable place to read the current bar's OHLC. If a
 // future TradingView build moves these, update the selectors in `readQuote`.
 
-import { evaluate, pressKey, typeString, sleep } from "./cdp.js";
+import * as cdp from "./cdp.js";
 import { resolveIndicatorName } from "./indicators.js";
 import { SETTLE_MS } from "./config.js";
+
+// The default I/O surface: the real CDP connection.
+export const defaultIO = {
+  evaluate: cdp.evaluate,
+  pressKey: cdp.pressKey,
+  typeString: cdp.typeString,
+  sleep: cdp.sleep,
+};
 
 /**
  * The currently displayed symbol, read from the document title / legend.
  */
-export async function getActiveSymbol() {
-  return evaluate(`
+export async function getActiveSymbol(io = defaultIO) {
+  return io.evaluate(`
     // The page title is usually "<PRICE> <SYMBOL> ..." on TradingView.
     const legend = document.querySelector('[data-name="legend-source-title"]');
     if (legend && legend.textContent) return legend.textContent.trim();
@@ -30,8 +42,8 @@ export async function getActiveSymbol() {
  * Read the latest bar's OHLC (+ change) from the on-chart legend.
  * Returns null fields when the legend can't be parsed.
  */
-export async function readQuote() {
-  return evaluate(`
+export async function readQuote(io = defaultIO) {
+  return io.evaluate(`
     const out = { open: null, high: null, low: null, close: null, change: null, raw: null };
     const items = document.querySelectorAll('[data-name="legend-source-item"] [class*="valueValue"]');
     // The OHLC legend renders four values in order O H L C.
@@ -50,8 +62,8 @@ export async function readQuote() {
  * Read every indicator currently shown in the legend, with its displayed
  * values. Returns e.g. [{ title: "RSI 14", values: [48.2] }, ...].
  */
-export async function readIndicatorValues() {
-  return evaluate(`
+export async function readIndicatorValues(io = defaultIO) {
+  return io.evaluate(`
     const out = [];
     const sources = document.querySelectorAll('[data-name="legend-source-item"]');
     for (const src of sources) {
@@ -73,13 +85,13 @@ export async function readIndicatorValues() {
  *
  * @param {string} symbol e.g. "BITSTAMP:BTCUSD" or "NASDAQ:AAPL"
  */
-export async function setSymbol(symbol) {
+export async function setSymbol(symbol, io = defaultIO) {
   if (!symbol) throw new Error("setSymbol requires a symbol");
-  await typeString(symbol);
-  await sleep(600); // let the search results populate
-  await pressKey("Enter");
-  await sleep(SETTLE_MS);
-  const active = await getActiveSymbol();
+  await io.typeString(symbol);
+  await io.sleep(600); // let the search results populate
+  await io.pressKey("Enter");
+  await io.sleep(SETTLE_MS);
+  const active = await getActiveSymbol(io);
   return { requested: symbol, active };
 }
 
@@ -89,11 +101,11 @@ export async function setSymbol(symbol) {
  *
  * @param {string} timeframe one of 1,3,5,15,30,60,120,240,D,W,M
  */
-export async function setTimeframe(timeframe) {
+export async function setTimeframe(timeframe, io = defaultIO) {
   if (!timeframe) throw new Error("setTimeframe requires a timeframe");
-  await typeString(String(timeframe));
-  await pressKey("Enter");
-  await sleep(SETTLE_MS);
+  await io.typeString(String(timeframe));
+  await io.pressKey("Enter");
+  await io.sleep(SETTLE_MS);
   return { timeframe };
 }
 
@@ -109,20 +121,20 @@ export async function setTimeframe(timeframe) {
  * @param {string} opts.name   indicator name (short or full)
  * @param {"add"|"remove"} opts.action
  */
-export async function manageIndicator({ name, action = "add" }) {
+export async function manageIndicator({ name, action = "add" }, io = defaultIO) {
   const full = resolveIndicatorName(name);
 
   if (action === "add") {
     // Open the "Indicators, metrics & strategies" dialog. The default shortcut
     // is "/" on the chart. We then type the indicator name and accept.
-    await typeString("/");
-    await sleep(700);
-    await typeString(full);
-    await sleep(900);
-    await pressKey("Enter");
-    await sleep(400);
-    await pressKey("Escape"); // close the dialog, leaving the indicator applied
-    await sleep(SETTLE_MS);
+    await io.typeString("/");
+    await io.sleep(700);
+    await io.typeString(full);
+    await io.sleep(900);
+    await io.pressKey("Enter");
+    await io.sleep(400);
+    await io.pressKey("Escape"); // close the dialog, leaving the indicator applied
+    await io.sleep(SETTLE_MS);
     return { action, indicator: full, applied: true };
   }
 
@@ -144,23 +156,29 @@ export async function manageIndicator({ name, action = "add" }) {
 }
 
 /**
- * Apply a whole strategy (from rules.json) across a single symbol: switch
- * symbol, set timeframe, add every indicator.
+ * The list of indicator names a strategy's `indicators` block expands to, in
+ * apply order. Object form expands each instance (so EMA 20 + EMA 50 = two).
  */
-export async function applyStrategyToSymbol(symbol, rules) {
-  const result = { symbol, indicators: [] };
-  await setSymbol(symbol);
-  await setTimeframe(rules.default_timeframe);
-
+export function strategyIndicatorNames(rules) {
   const indicators = rules.indicators || {};
-  const names = Array.isArray(indicators)
+  return Array.isArray(indicators)
     ? indicators.map((i) => i.name || i.type || i)
     : Object.entries(indicators).flatMap(([key, val]) =>
         Array.isArray(val) ? val.map(() => key) : [key]
       );
+}
 
-  for (const name of names) {
-    const r = await manageIndicator({ name, action: "add" });
+/**
+ * Apply a whole strategy (from rules.json) across a single symbol: switch
+ * symbol, set timeframe, add every indicator.
+ */
+export async function applyStrategyToSymbol(symbol, rules, io = defaultIO) {
+  const result = { symbol, indicators: [] };
+  await setSymbol(symbol, io);
+  await setTimeframe(rules.default_timeframe, io);
+
+  for (const name of strategyIndicatorNames(rules)) {
+    const r = await manageIndicator({ name, action: "add" }, io);
     result.indicators.push(r);
   }
   return result;

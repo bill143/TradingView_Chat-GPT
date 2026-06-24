@@ -36,9 +36,10 @@ your agent  ──MCP/stdio──▶  src/server.js  ──CDP:9222──▶  Tr
    ```bash
    npm run health
    ```
-5. **Create your strategy file:**
+5. **Create your strategy file** from the template (won't overwrite an existing
+   one):
    ```bash
-   cp rules.template.json rules.json   # then edit it
+   npm run init   # writes rules.json — then edit it
    ```
 6. **Wire it into your MCP client.** Point the client at `src/server.js`, e.g.
    for Codex (`~/.codex/config.toml`):
@@ -60,11 +61,20 @@ your agent  ──MCP/stdio──▶  src/server.js  ──CDP:9222──▶  Tr
 
 ## Daily brief
 
-`scripts/morning_brief.js` runs the watchlist analysis without an MCP client —
-handy on a cron:
-```cron
-0 8 * * * cd /path/to/repo && node scripts/morning_brief.js >> ~/brief.log 2>&1
+`scripts/morning_brief.js` runs the watchlist analysis without an MCP client.
+Install it as a daily 08:00 cron job (idempotent — safe to re-run):
+
+```bash
+scripts/install_cron.sh            # 08:00 local time, logs to ~/brief.log
+scripts/install_cron.sh 7          # use a different hour (24h)
+scripts/install_cron.sh --uninstall
 ```
+
+View results with `tail -f ~/brief.log`. Your machine must be awake with
+TradingView running (CDP enabled) at that time for the brief to produce data.
+
+On **Windows**, use Task Scheduler to run
+`node scripts\morning_brief.js` daily instead.
 
 ## Configuration
 
@@ -73,17 +83,21 @@ Environment variables: `TV_CDP_HOST`, `TV_CDP_PORT` (default 9222),
 
 ## Development & testing
 
-Tests use Node's built-in runner (no extra dependencies) and don't require a
-running TradingView — the CDP layer is exercised through its graceful
-not-connected path.
+Tests use Node's built-in runner and don't require a running TradingView: the
+chart-driving layer (`src/tradingview.js`, `src/brief.js`) takes an injectable
+CDP `io` object, and tests pass a fake one (`test/helpers/fake-io.js`) that
+records keystrokes and serves canned chart data.
 
 ```bash
-npm test       # run the full suite
-npm run check  # syntax-check the server + run tests
+npm run lint           # ESLint
+npm run format         # Prettier (writes)
+npm test               # test suite
+npm run check          # lint + format check + syntax check + tests (the CI gate)
 ```
 
-CI runs the same suite on Node 20 and 22 via GitHub Actions
-(`.github/workflows/ci.yml`).
+CI runs the same gate on Node 20 and 22 via GitHub Actions
+(`.github/workflows/ci.yml`). See [CONTRIBUTING.md](./CONTRIBUTING.md) for the
+full workflow.
 
 ## Caveats
 

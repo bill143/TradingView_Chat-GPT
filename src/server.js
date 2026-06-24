@@ -61,8 +61,7 @@ server.registerTool(
   "chart_set_symbol",
   {
     title: "Set chart symbol",
-    description:
-      "Switch the active chart to a symbol, e.g. 'BITSTAMP:BTCUSD' or 'NASDAQ:AAPL'.",
+    description: "Switch the active chart to a symbol, e.g. 'BITSTAMP:BTCUSD' or 'NASDAQ:AAPL'.",
     inputSchema: { symbol: z.string().describe("Full TradingView ticker") },
   },
   async ({ symbol }) => {

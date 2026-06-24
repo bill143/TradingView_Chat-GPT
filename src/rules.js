@@ -4,9 +4,19 @@ import fs from "node:fs";
 import { RULES_PATH } from "./config.js";
 
 const VALID_TIMEFRAMES = new Set([
-  "1", "3", "5", "15", "30", "45",
-  "60", "120", "180", "240",
-  "D", "W", "M",
+  "1",
+  "3",
+  "5",
+  "15",
+  "30",
+  "45",
+  "60",
+  "120",
+  "180",
+  "240",
+  "D",
+  "W",
+  "M",
 ]);
 
 export function loadRules(rulesPath = RULES_PATH) {
