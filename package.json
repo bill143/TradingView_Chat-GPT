@@ -10,6 +10,7 @@
     "start": "node src/server.js",
     "brief": "node scripts/morning_brief.js",
     "health": "node scripts/health_check.js",
+    "verify:live": "node scripts/verify_live.js",
     "test": "node --test",
     "lint": "eslint .",
     "format": "prettier --write .",

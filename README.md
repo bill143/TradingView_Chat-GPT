@@ -114,6 +114,20 @@ CI runs the same gate on Node 20 and 22 via GitHub Actions
 (`.github/workflows/ci.yml`). See [CONTRIBUTING.md](./CONTRIBUTING.md) for the
 full workflow.
 
+### Verifying against a real chart
+
+The driving layer is unit-tested against a fake chart. To validate it against a
+**live** TradingView Desktop (selectors + keyboard flows), launch the debug app
+and run:
+
+```bash
+npm run verify:live
+```
+
+See [docs/LIVE_VERIFICATION.md](./docs/LIVE_VERIFICATION.md) for the full
+checklist and a ready-to-paste prompt for fixing whatever the live chart
+reveals.
+
 ## Caveats
 
 - The legend scrapers target TradingView's current DOM; UI changes may require
