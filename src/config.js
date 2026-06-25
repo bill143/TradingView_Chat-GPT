@@ -19,4 +19,14 @@ export const TV_URL_MATCH = /tradingview\.com/i;
 // How long to wait (ms) for in-page operations like symbol switches to settle.
 export const SETTLE_MS = Number(process.env.TV_SETTLE_MS || 1500);
 
+// Symbol-switch confirmation: after pressing Enter we re-read the active symbol
+// and, if it hasn't updated yet, poll up to SYMBOL_CONFIRM_TRIES times waiting
+// SYMBOL_CONFIRM_MS between reads. Tune up on a slow machine / network.
+export const SYMBOL_CONFIRM_TRIES = Number(process.env.TV_SYMBOL_CONFIRM_TRIES || 5);
+export const SYMBOL_CONFIRM_MS = Number(process.env.TV_SYMBOL_CONFIRM_MS || 500);
+
+// How long to wait (ms) after opening a dialog/search before typing, and after
+// typing before reading results. TradingView mounts these panels asynchronously.
+export const DIALOG_SETTLE_MS = Number(process.env.TV_DIALOG_SETTLE_MS || 900);
+
 export const HOME = os.homedir();
