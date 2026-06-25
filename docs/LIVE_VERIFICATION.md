@@ -9,7 +9,7 @@ do. Run it on the machine where TradingView Desktop is installed.
 ## What you're validating
 
 1. **Legend selectors** — `readQuote`, `readIndicatorValues` return real numbers.
-2. **Keyboard flows** — symbol switch, timeframe change, add-indicator (`/`).
+2. **Input flows** — symbol switch, timeframe change, add-indicator.
 3. **Symbol-switch confirmation** — the chart actually changed to what we asked.
 
 ## Steps
@@ -53,10 +53,32 @@ do. Run it on the machine where TradingView Desktop is installed.
    - `readQuote` **fail** or empty → the legend selectors need updating.
    - `setSymbol` **warn** (active symbol ≠ requested) → the search/Enter flow or
      timing (`TV_SETTLE_MS`) needs tuning.
-   - `readIndicatorValues` empty after adding one → the `/` add-indicator flow or
+   - `readIndicatorValues` empty after adding one → the add-indicator flow or
      the legend selector is off.
    - `readCandles` **warn** (`available:false`) → expected; deep history isn't
      wired yet.
+
+## Build-specific notes (reverse-engineered on TradingView Desktop 3.2.0)
+
+These were found by inspecting the live DOM over CDP. The hashed class suffixes
+(`-YTFIJ62h`, etc.) change between TradingView releases — we match on the prefix
+(`[class*="series-"]`), so re-inspect and update if reads come back empty.
+
+- **Active symbol** — the header button `#header-toolbar-symbol-search` (stable
+  id) holds the ticker in its inner `value-…` span. The legend series title shows
+  the _description_ ("Bitcoin / U.S. Dollar"), not the ticker.
+- **OHLC** — the price row (`[class*="series-"]` in `.chart-gui-wrapper__legend`)
+  renders labelled cells "O…/H…/L…/C…"; parse by label, not position. Large values
+  may be abbreviated (`K`/`M`/`B`) — the parser multiplies them back.
+- **Indicators** — oscillators live in their own sub-pane, each with its own
+  `.chart-gui-wrapper__legend`, so we scan **all** legends for `[class*="study-"]`.
+- **Typing** — a CDP `keyDown` must NOT carry `text` (only the `char` event may);
+  otherwise every character is inserted twice (`RSI` → `RRSSII`).
+- **Add indicator** — the `/` hotkey opens _symbol search_ on this build, so we
+  click `[data-name="open-indicators-dialog"]`, type the name, then click the
+  first result row in `[data-name="indicators-dialog"]`.
+- **Timeframe** — the interval quick-entry only opens on a _digit_; a bare letter
+  opens symbol search. `D`/`W`/`M` are typed as `1D`/`1W`/`1M`.
 
 ## Hand it to Claude Code to fix
 

@@ -21,11 +21,23 @@ export function createFakeIO({ symbol = "BITSTAMP:BTCUSD", quote = null, indicat
     async sleep() {
       // No real waiting in tests.
     },
+    async click(selector) {
+      actions.push({ op: "click", selector });
+      return true;
+    },
+    async clickAt(x, y) {
+      actions.push({ op: "clickAt", x, y });
+    },
     async evaluate(expr) {
       actions.push({ op: "evaluate" });
-      if (expr.includes("return document.title.trim();")) return state.symbol;
-      if (expr.includes("out.open = nums[0]")) return state.quote;
-      if (expr.includes("const sources =")) return state.indicators;
+      // Route by the stable marker each read expression carries, so the fake
+      // stays decoupled from the exact (build-specific) selector strings.
+      if (expr.includes("/*MARK:active*/")) return state.symbol;
+      if (expr.includes("/*MARK:quote*/")) return state.quote;
+      if (expr.includes("/*MARK:indicators*/")) return state.indicators;
+      // Indicator result-row coordinate lookup: no DOM in tests, so report
+      // "not found" and the caller simply skips the click.
+      if (expr.includes("/*MARK:clickresult*/")) return null;
       throw new Error("FakeIO: unrecognised evaluate expression");
     },
   };
@@ -33,5 +45,6 @@ export function createFakeIO({ symbol = "BITSTAMP:BTCUSD", quote = null, indicat
   // Convenience accessors for assertions.
   io.typed = () => actions.filter((a) => a.op === "type").map((a) => a.text);
   io.keys = () => actions.filter((a) => a.op === "key").map((a) => a.key);
+  io.clicks = () => actions.filter((a) => a.op === "click").map((a) => a.selector);
   return io;
 }

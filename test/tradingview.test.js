@@ -29,7 +29,7 @@ test("setSymbol rejects an empty symbol", async () => {
   await assert.rejects(() => setSymbol("", io), /requires a symbol/);
 });
 
-test("setTimeframe types the interval and presses Enter", async () => {
+test("setTimeframe types a numeric interval as-is and presses Enter", async () => {
   const io = createFakeIO();
   const res = await setTimeframe("15", io);
   assert.deepEqual(io.typed(), ["15"]);
@@ -37,12 +37,27 @@ test("setTimeframe types the interval and presses Enter", async () => {
   assert.deepEqual(res, { timeframe: "15" });
 });
 
-test("manageIndicator add opens the dialog, types the full name, accepts and closes", async () => {
+test("setTimeframe types D/W/M digit-first so they hit the interval input", async () => {
+  for (const [tf, typed] of [
+    ["D", "1D"],
+    ["W", "1W"],
+    ["M", "1M"],
+  ]) {
+    const io = createFakeIO();
+    const res = await setTimeframe(tf, io);
+    assert.deepEqual(io.typed(), [typed], `timeframe ${tf}`);
+    assert.deepEqual(res, { timeframe: tf });
+  }
+});
+
+test("manageIndicator add clicks the indicators button, types the full name, accepts and closes", async () => {
   const io = createFakeIO();
   const res = await manageIndicator({ name: "RSI", action: "add" }, io);
-  // "/" opens the dialog, then the resolved full name is typed.
-  assert.deepEqual(io.typed(), ["/", "Relative Strength Index"]);
-  assert.deepEqual(io.keys(), ["Enter", "Escape"]);
+  // The indicators dialog is opened by CLICK (the "/" hotkey opens symbol search
+  // on this build), then the resolved full name is typed, then Escape closes it.
+  assert.deepEqual(io.clicks(), ['[data-name="open-indicators-dialog"]']);
+  assert.deepEqual(io.typed(), ["Relative Strength Index"]);
+  assert.deepEqual(io.keys(), ["Escape"]);
   assert.deepEqual(res, { action: "add", indicator: "Relative Strength Index", applied: true });
 });
 
@@ -124,8 +139,8 @@ test("read helpers return the canned chart data", async () => {
 test("manageIndicator add surfaces requested params with an honest note", async () => {
   const io = createFakeIO();
   const res = await manageIndicator({ name: "ema", action: "add", params: { length: 50 } }, io);
-  // Keystrokes are unchanged — params can't be set from the add dialog.
-  assert.deepEqual(io.typed(), ["/", "Moving Average Exponential"]);
+  // Keystrokes carry only the name — params can't be set from the add dialog.
+  assert.deepEqual(io.typed(), ["Moving Average Exponential"]);
   assert.equal(res.applied, true);
   assert.equal(res.params_applied, false);
   assert.deepEqual(res.requested_params, { length: 50 });
@@ -181,16 +196,21 @@ test("applyStrategyToSymbol switches symbol, sets timeframe, and adds every indi
   };
   const res = await applyStrategyToSymbol("BITSTAMP:ETHUSD", rules, io);
 
-  // symbol typed, timeframe typed, then "/" + name for each of the 3 indicators.
+  // symbol typed, timeframe typed, then the name for each of the 3 indicators
+  // (each opened via a click on the indicators button, not a typed "/").
   assert.deepEqual(io.typed(), [
     "BITSTAMP:ETHUSD",
-    "D",
-    "/",
+    "1D",
     "Moving Average Exponential",
-    "/",
     "Moving Average Exponential",
-    "/",
     "Relative Strength Index",
+  ]);
+  // 1 symbol-search click + 3 indicators-dialog clicks.
+  assert.deepEqual(io.clicks(), [
+    "#header-toolbar-symbol-search",
+    '[data-name="open-indicators-dialog"]',
+    '[data-name="open-indicators-dialog"]',
+    '[data-name="open-indicators-dialog"]',
   ]);
   assert.equal(res.indicators.length, 3);
   assert.ok(res.indicators.every((i) => i.applied));
