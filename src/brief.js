@@ -6,7 +6,13 @@
 // vs. moving averages). It is intentionally simple and explainable — the agent
 // layers the user's own bias_criteria narrative on top when it talks to them.
 
-import { setSymbol, setTimeframe, readQuote, readIndicatorValues } from "./tradingview.js";
+import {
+  setSymbol,
+  setTimeframe,
+  readQuote,
+  readIndicatorValues,
+  defaultIO,
+} from "./tradingview.js";
 
 export function classify(quote, indicators) {
   const reasons = [];
@@ -27,12 +33,25 @@ export function classify(quote, indicators) {
     const v = ind.values?.[0];
     if (v == null) continue;
     if (title.includes("relative strength") || /\brsi\b/.test(title)) {
-      if (v >= 55) { score += 1; reasons.push(`RSI ${v.toFixed(1)} (momentum up)`); }
-      else if (v <= 45) { score -= 1; reasons.push(`RSI ${v.toFixed(1)} (momentum down)`); }
+      if (v >= 55) {
+        score += 1;
+        reasons.push(`RSI ${v.toFixed(1)} (momentum up)`);
+      } else if (v <= 45) {
+        score -= 1;
+        reasons.push(`RSI ${v.toFixed(1)} (momentum down)`);
+      }
     }
-    if ((title.includes("moving average") || /\bema\b|\bsma\b/.test(title)) && quote?.close != null) {
-      if (quote.close > v) { score += 1; reasons.push(`price above ${ind.title}`); }
-      else if (quote.close < v) { score -= 1; reasons.push(`price below ${ind.title}`); }
+    if (
+      (title.includes("moving average") || /\bema\b|\bsma\b/.test(title)) &&
+      quote?.close != null
+    ) {
+      if (quote.close > v) {
+        score += 1;
+        reasons.push(`price above ${ind.title}`);
+      } else if (quote.close < v) {
+        score -= 1;
+        reasons.push(`price below ${ind.title}`);
+      }
     }
   }
 
@@ -47,16 +66,16 @@ export function classify(quote, indicators) {
  * Build the brief for every symbol in the rules watchlist.
  * @param {object} rules normalised rules object
  */
-export async function morningBrief(rules) {
+export async function morningBrief(rules, io = defaultIO) {
   const tf = rules.default_timeframe;
   const results = [];
 
   for (const symbol of rules.watchlist) {
     try {
-      await setSymbol(symbol);
-      await setTimeframe(tf);
-      const quote = await readQuote();
-      const indicators = await readIndicatorValues();
+      await setSymbol(symbol, io);
+      await setTimeframe(tf, io);
+      const quote = await readQuote(io);
+      const indicators = await readIndicatorValues(io);
       const { bias, score, reasons } = classify(quote, indicators);
       results.push({
         symbol,
@@ -65,9 +84,10 @@ export async function morningBrief(rules) {
         score,
         reasons,
         quote,
-        key_level: quote?.high != null && quote?.low != null
-          ? { recent_high: quote.high, recent_low: quote.low }
-          : null,
+        key_level:
+          quote?.high != null && quote?.low != null
+            ? { recent_high: quote.high, recent_low: quote.low }
+            : null,
       });
     } catch (err) {
       results.push({ symbol, error: String(err.message || err) });
