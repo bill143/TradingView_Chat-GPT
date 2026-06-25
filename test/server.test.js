@@ -16,6 +16,9 @@ const EXPECTED_TOOLS = [
   "strategy_apply",
   "morning_brief",
   "strategy_plan_check",
+  "pine_summary",
+  "chart_read_candles",
+  "chart_list_indicators",
 ];
 
 test("server boots over stdio and advertises all tools", async () => {

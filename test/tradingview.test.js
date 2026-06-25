@@ -9,7 +9,10 @@ import {
   readIndicatorValues,
   getActiveSymbol,
   applyStrategyToSymbol,
+  strategyIndicators,
   strategyIndicatorNames,
+  normalizeCandles,
+  readCandles,
 } from "../src/tradingview.js";
 import { createFakeIO } from "./helpers/fake-io.js";
 
@@ -60,6 +63,55 @@ test("manageIndicator throws on an unknown action", async () => {
   );
 });
 
+test("normalizeCandles reports unavailable for null / explicit unavailable", () => {
+  assert.equal(normalizeCandles(null).available, false);
+  assert.deepEqual(normalizeCandles({ available: false, reason: "nope" }), {
+    available: false,
+    reason: "nope",
+  });
+  assert.equal(normalizeCandles({ something: 1 }).available, false);
+});
+
+test("normalizeCandles maps array and {candles} payloads and filters invalid bars", () => {
+  const arr = [
+    { time: 1, open: 10, high: 12, low: 9, close: 11, volume: 100 },
+    { t: 2, o: 11, h: 13, l: 10, c: 12, v: 50 }, // short keys
+    { open: null, close: null }, // invalid -> filtered
+  ];
+  const fromArray = normalizeCandles(arr);
+  assert.equal(fromArray.available, true);
+  assert.equal(fromArray.count, 2);
+  assert.deepEqual(fromArray.candles[0], {
+    time: 1,
+    open: 10,
+    high: 12,
+    low: 9,
+    close: 11,
+    volume: 100,
+  });
+  assert.equal(fromArray.candles[1].open, 11);
+
+  const fromObj = normalizeCandles({ candles: arr, source: "tvWidget" });
+  assert.equal(fromObj.available, true);
+  assert.equal(fromObj.source, "tvWidget");
+});
+
+test("readCandles passes through an unavailable probe result", async () => {
+  const io = { evaluate: async () => ({ available: false, reason: "no hook" }) };
+  const res = await readCandles(20, io);
+  assert.equal(res.available, false);
+  assert.match(res.reason, /no hook/);
+});
+
+test("readCandles normalises a successful probe", async () => {
+  const io = {
+    evaluate: async () => [{ time: 1, open: 1, high: 2, low: 0.5, close: 1.5, volume: 9 }],
+  };
+  const res = await readCandles(1, io);
+  assert.equal(res.available, true);
+  assert.equal(res.count, 1);
+});
+
 test("read helpers return the canned chart data", async () => {
   const quote = { open: 1, high: 2, low: 0.5, close: 1.5, change: null, raw: "x" };
   const indicators = [{ title: "RSI 14", values: [55] }];
@@ -67,6 +119,46 @@ test("read helpers return the canned chart data", async () => {
   assert.equal(await getActiveSymbol(io), "BITSTAMP:BTCUSD");
   assert.deepEqual(await readQuote(io), quote);
   assert.deepEqual(await readIndicatorValues(io), indicators);
+});
+
+test("manageIndicator add surfaces requested params with an honest note", async () => {
+  const io = createFakeIO();
+  const res = await manageIndicator({ name: "ema", action: "add", params: { length: 50 } }, io);
+  // Keystrokes are unchanged — params can't be set from the add dialog.
+  assert.deepEqual(io.typed(), ["/", "Moving Average Exponential"]);
+  assert.equal(res.applied, true);
+  assert.equal(res.params_applied, false);
+  assert.deepEqual(res.requested_params, { length: 50 });
+  assert.match(res.note, /length=50/);
+});
+
+test("manageIndicator add without params has no params note", async () => {
+  const io = createFakeIO();
+  const res = await manageIndicator({ name: "RSI", action: "add" }, io);
+  assert.equal(res.params_applied, undefined);
+  assert.equal(res.note, undefined);
+});
+
+test("strategyIndicators carries params per instance", () => {
+  const list = strategyIndicators({
+    indicators: { ema: [{ length: 20 }, { length: 50 }], rsi: [{ length: 14 }] },
+  });
+  assert.deepEqual(list, [
+    { name: "ema", params: { length: 20 } },
+    { name: "ema", params: { length: 50 } },
+    { name: "rsi", params: { length: 14 } },
+  ]);
+});
+
+test("strategyIndicators handles array form with name/type + params", () => {
+  const list = strategyIndicators({
+    indicators: [{ name: "RSI", length: 14 }, { type: "MACD" }, "VWAP"],
+  });
+  assert.deepEqual(list, [
+    { name: "RSI", params: { length: 14 } },
+    { name: "MACD", params: {} },
+    { name: "VWAP", params: {} },
+  ]);
 });
 
 test("strategyIndicatorNames expands each instance (object form)", () => {
