@@ -79,6 +79,63 @@ export async function readIndicatorValues(io = defaultIO) {
 }
 
 /**
+ * Normalise whatever the in-page candle probe returns into a stable shape.
+ * Pure (no I/O) so it can be unit-tested.
+ */
+export function normalizeCandles(raw) {
+  if (raw == null) return { available: false, reason: "no data returned from the chart" };
+  if (raw.available === false) {
+    return { available: false, reason: raw.reason || "candle data not available" };
+  }
+  const arr = Array.isArray(raw) ? raw : Array.isArray(raw.candles) ? raw.candles : null;
+  if (!arr) return { available: false, reason: "unrecognised candle payload" };
+
+  const n = (x) => (typeof x === "number" && !Number.isNaN(x) ? x : null);
+  const candles = arr
+    .map((c) => ({
+      time: c.time ?? c.t ?? null,
+      open: n(c.open ?? c.o),
+      high: n(c.high ?? c.h),
+      low: n(c.low ?? c.l),
+      close: n(c.close ?? c.c),
+      volume: n(c.volume ?? c.v),
+    }))
+    .filter((c) => c.open != null && c.close != null);
+
+  return { available: true, count: candles.length, source: raw.source || "chart", candles };
+}
+
+/**
+ * Best-effort read of the recent candle series.
+ *
+ * IMPORTANT: TradingView Desktop does not expose its chart data model as a
+ * public API, so this probes for a series and otherwise reports
+ * `available: false` rather than inventing data. The normalisation is solid and
+ * tested; the in-page extraction is the part that needs validating against a
+ * live build (and may need updating when a working hook is identified).
+ *
+ * @param {number} count how many recent bars to request
+ */
+export async function readCandles(count = 50, io = defaultIO) {
+  const raw = await io.evaluate(`
+    // candle-series probe — returns {available:false} until a stable hook is found.
+    const want = ${Number(count) || 50};
+    try {
+      // Some embeds expose a widget API; the desktop app generally does not.
+      const api = window.TradingViewApi || (window.tvWidget && window.tvWidget.activeChart && window.tvWidget);
+      if (api && typeof api.exportData === 'function') {
+        // Placeholder for a verified extraction path.
+        return { available: false, reason: 'export hook present but extraction not yet implemented', source: 'tvWidget' };
+      }
+      return { available: false, reason: 'no chart data hook exposed by TradingView Desktop; only the latest bar (chart_read) is reliably available', want };
+    } catch (e) {
+      return { available: false, reason: String(e && e.message || e) };
+    }
+  `);
+  return normalizeCandles(raw);
+}
+
+/**
  * Switch the active chart to a new symbol. TradingView opens its symbol search
  * as soon as you start typing on the chart; we type the ticker and hit Enter to
  * accept the top match.
@@ -120,9 +177,11 @@ export async function setTimeframe(timeframe, io = defaultIO) {
  * @param {object} opts
  * @param {string} opts.name   indicator name (short or full)
  * @param {"add"|"remove"} opts.action
+ * @param {object} [opts.params] requested parameters, e.g. { length: 50 }
  */
-export async function manageIndicator({ name, action = "add" }, io = defaultIO) {
+export async function manageIndicator({ name, action = "add", params = null }, io = defaultIO) {
   const full = resolveIndicatorName(name);
+  const hasParams = params && Object.keys(params).length > 0;
 
   if (action === "add") {
     // Open the "Indicators, metrics & strategies" dialog. The default shortcut
@@ -135,7 +194,23 @@ export async function manageIndicator({ name, action = "add" }, io = defaultIO) 
     await io.sleep(400);
     await io.pressKey("Escape"); // close the dialog, leaving the indicator applied
     await io.sleep(SETTLE_MS);
-    return { action, indicator: full, applied: true };
+
+    const result = { action, indicator: full, applied: true };
+    if (hasParams) {
+      // The add-indicator dialog only applies an indicator with its DEFAULT
+      // inputs — there's no stable keyboard path to set a specific length from
+      // here. Surface the requested params honestly so the agent can tell the
+      // user what still needs setting in the indicator's settings dialog.
+      result.requested_params = params;
+      result.params_applied = false;
+      result.note =
+        "Applied with default settings. Set " +
+        Object.entries(params)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", ") +
+        " in the indicator's settings dialog (double-click it in the legend).";
+    }
+    return result;
   }
 
   if (action === "remove") {
@@ -156,29 +231,43 @@ export async function manageIndicator({ name, action = "add" }, io = defaultIO) 
 }
 
 /**
- * The list of indicator names a strategy's `indicators` block expands to, in
- * apply order. Object form expands each instance (so EMA 20 + EMA 50 = two).
+ * Expand a strategy's `indicators` block into [{ name, params }] in apply
+ * order. Object form expands each instance (EMA 20 + EMA 50 = two entries, each
+ * carrying its own params); array form passes name + the entry as params.
+ */
+export function strategyIndicators(rules) {
+  const indicators = rules.indicators || {};
+  if (Array.isArray(indicators)) {
+    return indicators.map((i) => {
+      if (typeof i === "string") return { name: i, params: {} };
+      const { name, type, ...params } = i;
+      return { name: name || type, params };
+    });
+  }
+  return Object.entries(indicators).flatMap(([key, val]) => {
+    if (Array.isArray(val)) return val.map((cfg) => ({ name: key, params: cfg || {} }));
+    return [{ name: key, params: typeof val === "object" ? val : {} }];
+  });
+}
+
+/**
+ * Names only — kept for callers/tests that just want the apply order.
  */
 export function strategyIndicatorNames(rules) {
-  const indicators = rules.indicators || {};
-  return Array.isArray(indicators)
-    ? indicators.map((i) => i.name || i.type || i)
-    : Object.entries(indicators).flatMap(([key, val]) =>
-        Array.isArray(val) ? val.map(() => key) : [key]
-      );
+  return strategyIndicators(rules).map((i) => i.name);
 }
 
 /**
  * Apply a whole strategy (from rules.json) across a single symbol: switch
- * symbol, set timeframe, add every indicator.
+ * symbol, set timeframe, add every indicator (with its requested params).
  */
 export async function applyStrategyToSymbol(symbol, rules, io = defaultIO) {
   const result = { symbol, indicators: [] };
   await setSymbol(symbol, io);
   await setTimeframe(rules.default_timeframe, io);
 
-  for (const name of strategyIndicatorNames(rules)) {
-    const r = await manageIndicator({ name, action: "add" }, io);
+  for (const { name, params } of strategyIndicators(rules)) {
+    const r = await manageIndicator({ name, action: "add", params }, io);
     result.indicators.push(r);
   }
   return result;

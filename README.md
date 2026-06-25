@@ -56,8 +56,23 @@ your agent  ──MCP/stdio──▶  src/server.js  ──CDP:9222──▶  Tr
 ## Tools
 
 `tv_health_check`, `chart_set_symbol`, `chart_set_timeframe`,
-`chart_manage_indicator`, `chart_read`, `strategy_apply`, `morning_brief`,
-`strategy_plan_check`. See [CLAUDE.md](./CLAUDE.md) for details.
+`chart_manage_indicator`, `chart_read`, `chart_read_candles`,
+`chart_list_indicators`, `strategy_apply`, `morning_brief`,
+`strategy_plan_check`, `pine_summary`. See [CLAUDE.md](./CLAUDE.md) for details.
+
+### Strategy criteria & Pine import
+
+`bias_criteria` in `rules.json` accepts plain-English strings **or** structured
+conditions that are evaluated live, e.g.
+`{ "indicator": "rsi", "op": ">=", "value": 55 }` or
+`{ "left": "close", "op": ">", "right": "ema:50" }`. `morning_brief` reports
+which were met.
+
+Import an existing Pine Script into your strategy:
+
+```bash
+node scripts/import_pine.js path/to/strategy.pine
+```
 
 ## Daily brief
 
