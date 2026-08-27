@@ -74,6 +74,24 @@ Import an existing Pine Script into your strategy:
 node scripts/import_pine.js path/to/strategy.pine
 ```
 
+### Super Trader (multi-agent engine)
+
+A multi-agent decision engine layered on the chart reads above. Signal agents
+(technical / quant / sentiment) feed a Portfolio Manager that aggregates and
+sizes a proposed trade, which then passes through **code-enforced risk rails**
+that no agent can override. Execution is advisory by default and only ever
+touches a local paper-trading account.
+
+- `supertrader_decide` — decide for one symbol (advisory).
+- `supertrader_run` — decide across the whole `rules.json` watchlist.
+- `supertrader_risk_check` — run a proposed order through the risk rails.
+- `supertrader_backtest` — backtest an OHLC series and return a fitness score.
+- `supertrader_paper_status` — current paper account, positions, and P&L.
+
+Tune it with an optional `supertrader` block in `rules.json` (`risk`, `weights`,
+`sizing`). Architecture and provenance: [docs/INTEGRATION_PLAN.md](./docs/INTEGRATION_PLAN.md).
+Run the test suite with `npm test`.
+
 ## Daily brief
 
 `scripts/morning_brief.js` runs the watchlist analysis without an MCP client.

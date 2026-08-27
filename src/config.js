@@ -12,6 +12,11 @@ export const RULES_PATH =
   process.env.TV_RULES_PATH ||
   path.join(path.dirname(new URL("..", import.meta.url).pathname), "rules.json");
 
+// Where the Super Trader persists its paper-trading account between MCP calls.
+export const PAPER_STATE_PATH =
+  process.env.TV_PAPER_STATE ||
+  path.join(path.dirname(new URL("..", import.meta.url).pathname), "paper_state.json");
+
 // Heuristic: which Electron/Chromium frame is the real TradingView chart app.
 // TradingView Desktop loads its SPA from a tradingview.com origin.
 export const TV_URL_MATCH = /tradingview\.com/i;
