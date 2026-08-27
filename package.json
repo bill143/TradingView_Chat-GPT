@@ -10,8 +10,13 @@
     "start": "node src/server.js",
     "brief": "node scripts/morning_brief.js",
     "health": "node scripts/health_check.js",
+    "verify:live": "node scripts/verify_live.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --test"
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "init": "node scripts/init_rules.js",
+    "check": "npm run lint && prettier --check . && node --check src/server.js && node --test"
   },
   "engines": {
     "node": ">=20"
@@ -21,5 +26,12 @@
     "chrome-remote-interface": "^0.33.3",
     "zod": "^3.23.8"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.7.0",
+    "prettier": "^3.8.4"
+  }
 }

@@ -21,6 +21,9 @@ const EXPECTED_TOOLS = [
   "supertrader_risk_check",
   "supertrader_backtest",
   "supertrader_paper_status",
+  "pine_summary",
+  "chart_read_candles",
+  "chart_list_indicators",
 ];
 
 test("server boots over stdio and advertises all tools", async () => {

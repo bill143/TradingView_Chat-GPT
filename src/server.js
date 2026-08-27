@@ -19,10 +19,13 @@ import {
   readIndicatorValues,
   getActiveSymbol,
   applyStrategyToSymbol,
+  readCandles,
 } from "./tradingview.js";
 import { loadRules } from "./rules.js";
 import { morningBrief } from "./brief.js";
 import { countIndicators, PLAN_LIMITS, smallestPlanFor } from "./indicators.js";
+import { parsePine } from "./pine.js";
+import fs from "node:fs";
 
 import { buildConfig } from "./supertrader/config.js";
 import { PaperBroker } from "./supertrader/broker.js";
@@ -68,8 +71,7 @@ server.registerTool(
   "chart_set_symbol",
   {
     title: "Set chart symbol",
-    description:
-      "Switch the active chart to a symbol, e.g. 'BITSTAMP:BTCUSD' or 'NASDAQ:AAPL'.",
+    description: "Switch the active chart to a symbol, e.g. 'BITSTAMP:BTCUSD' or 'NASDAQ:AAPL'.",
     inputSchema: { symbol: z.string().describe("Full TradingView ticker") },
   },
   async ({ symbol }) => {
@@ -106,11 +108,15 @@ server.registerTool(
     inputSchema: {
       name: z.string().describe("Indicator name (short forms like 'RSI' are resolved)"),
       action: z.enum(["add", "remove"]).default("add"),
+      params: z
+        .record(z.union([z.string(), z.number()]))
+        .optional()
+        .describe("Requested params, e.g. { length: 50 } (reported; see note in result)"),
     },
   },
-  async ({ name, action }) => {
+  async ({ name, action, params }) => {
     try {
-      return ok(await manageIndicator({ name, action }));
+      return ok(await manageIndicator({ name, action, params }));
     } catch (e) {
       return fail(e);
     }
@@ -133,6 +139,49 @@ server.registerTool(
         readIndicatorValues(),
       ]);
       return ok({ symbol, quote, indicators });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.registerTool(
+  "chart_list_indicators",
+  {
+    title: "List indicators on the chart",
+    description:
+      "List the indicators currently shown in the legend (title + values). Use this to tell the user exactly which to remove, since removal must be done manually from the legend.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const indicators = await readIndicatorValues();
+      return ok({
+        count: indicators.length,
+        indicators,
+        removal_note:
+          "Removal isn't scriptable via keyboard shortcuts. To remove one, hover it " +
+          "in the chart legend, click the eye/more (…) menu, and choose Remove.",
+      });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.registerTool(
+  "chart_read_candles",
+  {
+    title: "Read recent candles (best effort)",
+    description:
+      "Best-effort read of the recent OHLC series. TradingView Desktop doesn't expose its data model publicly, so this may report available:false — in which case use chart_read for the latest bar.",
+    inputSchema: {
+      count: z.number().int().positive().max(5000).default(50).describe("How many bars to request"),
+    },
+  },
+  async ({ count }) => {
+    try {
+      return ok(await readCandles(count));
     } catch (e) {
       return fail(e);
     }
@@ -359,6 +408,33 @@ server.registerTool(
     try {
       const broker = PaperBroker.load(PAPER_STATE_PATH);
       return ok(broker.getAccount());
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.registerTool(
+  "pine_summary",
+  {
+    title: "Summarise a Pine Script",
+    description:
+      "Parse a Pine Script and extract its name, type, indicators, and entry/exit/alert lines. Pass the script inline or a file path; defaults to rules.json's strategy.pine_script_path.",
+    inputSchema: {
+      source: z.string().optional().describe("Raw Pine Script text"),
+      path: z.string().optional().describe("Path to a .pine file"),
+    },
+  },
+  async ({ source, path: pinePath }) => {
+    try {
+      let text = source;
+      if (!text && pinePath) text = fs.readFileSync(pinePath, "utf8");
+      if (!text) {
+        const configured = loadRules().strategy?.pine_script_path;
+        if (!configured) throw new Error("No Pine source, path, or strategy.pine_script_path set.");
+        text = fs.readFileSync(configured, "utf8");
+      }
+      return ok(parsePine(text));
     } catch (e) {
       return fail(e);
     }

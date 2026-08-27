@@ -12,8 +12,16 @@
     "atr": [{ "length": 14 }]
   },
   "bias_criteria": {
-    "bullish": ["price above the 50 EMA", "RSI above 50"],
-    "bearish": ["price below the 50 EMA", "RSI below 50"],
+    "bullish": [
+      "price above the 50 EMA",
+      { "left": "close", "op": ">", "right": "ema:50", "label": "price above 50 EMA" },
+      { "indicator": "rsi", "op": ">=", "value": 50, "label": "RSI >= 50" }
+    ],
+    "bearish": [
+      "price below the 50 EMA",
+      { "left": "close", "op": "<", "right": "ema:50", "label": "price below 50 EMA" },
+      { "indicator": "rsi", "op": "<", "value": 50, "label": "RSI < 50" }
+    ],
     "neutral": ["price chopping around the 50 EMA"]
   },
   "entry_rules": {

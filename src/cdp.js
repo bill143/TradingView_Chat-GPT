@@ -100,10 +100,11 @@ export async function healthCheck() {
 }
 
 // --- Keyboard input -------------------------------------------------------
-// TradingView is driven almost entirely by keyboard shortcuts (type a symbol
-// to open the symbol search, type an interval to change timeframe, "/" to open
-// the indicators search). We synthesise those keystrokes via the CDP Input
-// domain so the app behaves exactly as if a human typed them.
+// TradingView is driven largely by keyboard: type an interval to change the
+// timeframe, type into the (mouse-opened) symbol/indicator search to filter.
+// We synthesise those keystrokes via the CDP Input domain so the app behaves
+// as if a human typed them. (Note: the "/" key opens SYMBOL search on this
+// build, not the indicators dialog — that one is opened by mouse, below.)
 
 const SPECIAL_KEYS = {
   Enter: { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" },
@@ -123,16 +124,63 @@ export async function pressKey(name) {
 export async function typeString(str) {
   const client = await getClient();
   for (const ch of String(str)) {
-    // `char` events deliver the printable character; surrounding key events
-    // make TradingView's listeners (which open search on keydown) fire.
-    await client.Input.dispatchKeyEvent({ type: "keyDown", key: ch, text: ch });
+    // IMPORTANT: only the `char` event may carry `text`. Chromium treats a
+    // keyDown that *also* has `text` as itself producing input, so sending text
+    // on both keyDown and char inserts every character TWICE ("RSI" -> "RRSSII").
+    // That double-insertion was the root cause of the garbled symbols/searches
+    // on TradingView Desktop 3.2.0. Keep keyDown/keyUp text-free (so the app's
+    // keydown listeners still fire) and let `char` deliver the glyph once.
+    await client.Input.dispatchKeyEvent({ type: "keyDown", key: ch });
     await client.Input.dispatchKeyEvent({ type: "char", key: ch, text: ch });
-    await client.Input.dispatchKeyEvent({ type: "keyUp", key: ch, text: ch });
+    await client.Input.dispatchKeyEvent({ type: "keyUp", key: ch });
   }
 }
 
 export function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+// --- Mouse input ----------------------------------------------------------
+// Some TradingView actions have no reliable keyboard path on this build (e.g.
+// the "/" hotkey opens symbol search, NOT the indicators dialog). For those we
+// click the real toolbar buttons / result rows. Coordinates come from the live
+// element's bounding box, read in-page.
+
+export async function clickAt(x, y) {
+  const client = await getClient();
+  await client.Input.dispatchMouseEvent({ type: "mouseMoved", x, y });
+  await client.Input.dispatchMouseEvent({
+    type: "mousePressed",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+  });
+  await client.Input.dispatchMouseEvent({
+    type: "mouseReleased",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+  });
+}
+
+/**
+ * Click the centre of the first element matching `selector`. Returns false when
+ * the selector isn't present, so callers can fall back or report honestly
+ * rather than clicking blind coordinates.
+ */
+export async function click(selector) {
+  const rect = await evaluate(
+    `const el = document.querySelector(${JSON.stringify(selector)});
+     if (!el) return null;
+     const r = el.getBoundingClientRect();
+     if (!r.width || !r.height) return null;
+     return { x: r.x + r.width / 2, y: r.y + r.height / 2 };`
+  );
+  if (!rect) return false;
+  await clickAt(rect.x, rect.y);
+  return true;
 }
 
 export async function closeClient() {
