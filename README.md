@@ -90,6 +90,12 @@ touches a local paper-trading account.
 
 Tune it with an optional `supertrader` block in `rules.json` (`risk`, `weights`,
 `sizing`). Architecture and provenance: [docs/INTEGRATION_PLAN.md](./docs/INTEGRATION_PLAN.md).
+
+**Live data (optional).** Set `ALPHAVANTAGE_API_KEY` to turn the sentiment agent
+from a stub into real news-sentiment (Alpha Vantage `NEWS_SENTIMENT`). Also set
+`SUPERTRADER_FETCH_SERIES=1` to pull real daily OHLC history for the quant agent
+(off by default to conserve the free-tier request quota). Without a key the
+engine runs chart-only, exactly as before.
 Run the test suite with `npm test`.
 
 ## Daily brief
@@ -112,7 +118,8 @@ On **Windows**, use Task Scheduler to run
 ## Configuration
 
 Environment variables: `TV_CDP_HOST`, `TV_CDP_PORT` (default 9222),
-`TV_RULES_PATH`, `TV_SETTLE_MS`.
+`TV_RULES_PATH`, `TV_SETTLE_MS`, `ALPHAVANTAGE_API_KEY` (optional, live
+sentiment/data), `SUPERTRADER_FETCH_SERIES` (optional, `1` to fetch OHLC).
 
 ## Development & testing
 

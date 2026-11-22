@@ -21,7 +21,13 @@ export function aggregateSignals(signals, weights = {}) {
     // Only agents that actually vote (not flat) count toward the normalising
     // weight, so abstentions neither help nor dampen the consensus.
     if (dir !== 0) weightUsed += w;
-    breakdown.push({ agent: s.agent, weight: w, direction: s.direction, confidence: s.confidence, contribution });
+    breakdown.push({
+      agent: s.agent,
+      weight: w,
+      direction: s.direction,
+      confidence: s.confidence,
+      contribution,
+    });
   }
   // Normalise by the weight that actually voted so abstentions don't dampen.
   const norm = weightUsed > 0 ? net / weightUsed : 0;

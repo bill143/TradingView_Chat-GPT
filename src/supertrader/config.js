@@ -3,16 +3,16 @@
 // deliberately conservative (modelled on swarm-trader's swing-trade rails).
 
 export const DEFAULT_RISK = {
-  maxPositionPct: 0.08,      // max notional of a single position / equity
-  maxTotalExposurePct: 1.0,  // sum of all position notional / equity
+  maxPositionPct: 0.08, // max notional of a single position / equity
+  maxTotalExposurePct: 1.0, // sum of all position notional / equity
   maxOpenPositions: 10,
-  requireStopLoss: true,     // reject risk-increasing orders with no stop
+  requireStopLoss: true, // reject risk-increasing orders with no stop
   minStopDistancePct: 0.001, // stop must be at least this far from entry
-  maxStopDistancePct: 0.15,  // ...and no further (caps per-trade risk)
-  dailyLossLimitPct: 0.02,   // circuit breaker on realised P&L since day start
-  weeklyLossLimitPct: 0.05,  // circuit breaker on realised P&L since week start
-  cashReservePct: 0.05,      // always keep at least this fraction in cash
-  maxSectorPct: 0.30,        // optional: max notional per sector / equity
+  maxStopDistancePct: 0.15, // ...and no further (caps per-trade risk)
+  dailyLossLimitPct: 0.02, // circuit breaker on realised P&L since day start
+  weeklyLossLimitPct: 0.05, // circuit breaker on realised P&L since week start
+  cashReservePct: 0.05, // always keep at least this fraction in cash
+  maxSectorPct: 0.3, // optional: max notional per sector / equity
 };
 
 // How much each agent's vote counts when the Portfolio Manager aggregates.
@@ -24,10 +24,10 @@ export const DEFAULT_WEIGHTS = {
 
 // Sizing + stop/target defaults used when ATR isn't available.
 export const DEFAULT_SIZING = {
-  baseRiskPct: 0.01,   // risk ~1% of equity per trade (entry→stop distance)
-  stopLossPct: 0.07,   // fallback stop distance if no ATR
-  takeProfitR: 2.0,    // target = R-multiple of the stop distance
-  atrStopMult: 2.0,    // stop = atrStopMult * ATR when ATR is readable
+  baseRiskPct: 0.01, // risk ~1% of equity per trade (entry→stop distance)
+  stopLossPct: 0.07, // fallback stop distance if no ATR
+  takeProfitR: 2.0, // target = R-multiple of the stop distance
+  atrStopMult: 2.0, // stop = atrStopMult * ATR when ATR is readable
   minConfidence: 0.15, // below this aggregate confidence => hold
 };
 

@@ -6,20 +6,38 @@
 import fs from "node:fs";
 
 export class PaperBroker {
-  constructor({ cash = 100000, positions = {}, realizedPnL = 0, dayStartEquity = null, weekStartEquity = null, history = [] } = {}) {
+  constructor({
+    cash = 100000,
+    positions = {},
+    realizedPnL = 0,
+    realizedPnLToday = 0,
+    realizedPnLWeek = 0,
+    dayStartEquity = null,
+    weekStartEquity = null,
+    history = [],
+  } = {}) {
     this.cash = cash;
-    this.positions = positions;            // symbol -> { qty, avgPrice, sector }
-    this.realizedPnL = realizedPnL;        // lifetime realised
-    this.realizedPnLToday = 0;
-    this.realizedPnLWeek = 0;
-    this.dayStartEquity = dayStartEquity ?? cash;
-    this.weekStartEquity = weekStartEquity ?? cash;
+    this.positions = positions; // symbol -> { qty, avgPrice, sector }
+    this.realizedPnL = realizedPnL; // lifetime realised
+    this.realizedPnLToday = realizedPnLToday; // since dayStartEquity baseline
+    this.realizedPnLWeek = realizedPnLWeek; // since weekStartEquity baseline
+    // Baseline equity for the loss breakers includes pre-existing positions
+    // (at avg price), not just cash, so thresholds aren't understated.
+    const baseEquity =
+      cash + Object.values(positions).reduce((s, p) => s + (p.qty || 0) * (p.avgPrice || 0), 0);
+    this.dayStartEquity = dayStartEquity ?? baseEquity;
+    this.weekStartEquity = weekStartEquity ?? baseEquity;
     this.history = history;
   }
 
   /** Account snapshot. `prices` (symbol->price) marks positions to market. */
   getAccount(prices = {}) {
-    return { cash: this.cash, equity: this.equity(prices), positions: this.getPositions(), realizedPnL: this.realizedPnL };
+    return {
+      cash: this.cash,
+      equity: this.equity(prices),
+      positions: this.getPositions(),
+      realizedPnL: this.realizedPnL,
+    };
   }
 
   getPositions() {
@@ -93,17 +111,31 @@ export class PaperBroker {
   }
 
   /** Reset the daily breaker baseline (call at session start). */
-  rollDay(prices = {}) { this.dayStartEquity = this.equity(prices); this.realizedPnLToday = 0; }
-  rollWeek(prices = {}) { this.weekStartEquity = this.equity(prices); this.realizedPnLWeek = 0; }
+  rollDay(prices = {}) {
+    this.dayStartEquity = this.equity(prices);
+    this.realizedPnLToday = 0;
+  }
+  rollWeek(prices = {}) {
+    this.weekStartEquity = this.equity(prices);
+    this.realizedPnLWeek = 0;
+  }
 
   toJSON() {
     return {
-      cash: this.cash, positions: this.positions, realizedPnL: this.realizedPnL,
-      dayStartEquity: this.dayStartEquity, weekStartEquity: this.weekStartEquity, history: this.history,
+      cash: this.cash,
+      positions: this.positions,
+      realizedPnL: this.realizedPnL,
+      realizedPnLToday: this.realizedPnLToday,
+      realizedPnLWeek: this.realizedPnLWeek,
+      dayStartEquity: this.dayStartEquity,
+      weekStartEquity: this.weekStartEquity,
+      history: this.history,
     };
   }
 
-  save(path) { fs.writeFileSync(path, JSON.stringify(this.toJSON(), null, 2) + "\n"); }
+  save(path) {
+    fs.writeFileSync(path, JSON.stringify(this.toJSON(), null, 2) + "\n");
+  }
 
   static load(path) {
     if (!fs.existsSync(path)) return new PaperBroker();

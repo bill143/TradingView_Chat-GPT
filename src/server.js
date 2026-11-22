@@ -31,7 +31,8 @@ import { buildConfig } from "./supertrader/config.js";
 import { PaperBroker } from "./supertrader/broker.js";
 import { evaluateOrder } from "./supertrader/risk.js";
 import { backtest, smaCrossStrategy } from "./supertrader/backtest.js";
-import { decide, runWatchlist } from "./supertrader/orchestrator.js";
+import { decide, runWatchlist, activeSymbol } from "./supertrader/orchestrator.js";
+import { newsSentimentProvider, fetchDailySeries } from "./supertrader/providers/alphavantage.js";
 import { PAPER_STATE_PATH } from "./config.js";
 
 const server = new McpServer({
@@ -278,6 +279,25 @@ function traderConfig(rules) {
   return buildConfig(rules?.supertrader || {});
 }
 
+// Live sentiment provider when an Alpha Vantage key is configured; otherwise the
+// sentiment agent abstains (offline stub).
+function avSentimentProvider() {
+  return process.env.ALPHAVANTAGE_API_KEY ? newsSentimentProvider() : undefined;
+}
+
+// Optional real daily OHLC history for the quant agent / ATR fallback. Gated
+// behind a flag to conserve Alpha Vantage's request quota (free tier is small).
+async function maybeSeries(symbol) {
+  if (!process.env.ALPHAVANTAGE_API_KEY || process.env.SUPERTRADER_FETCH_SERIES !== "1") {
+    return undefined;
+  }
+  try {
+    return await fetchDailySeries(symbol);
+  } catch {
+    return undefined; // data is best-effort; fall back to chart-only signals
+  }
+}
+
 server.registerTool(
   "supertrader_decide",
   {
@@ -296,10 +316,17 @@ server.registerTool(
       const cfg = traderConfig(rules);
       const broker = PaperBroker.load(PAPER_STATE_PATH);
       const chart = await readChart(symbol, timeframe || rules.default_timeframe);
-      const prices = chart.quote?.close ? { [symbol]: chart.quote.close } : {};
+      // TradingView may normalise the ticker; key everything by the active symbol.
+      const sym = activeSymbol(chart, symbol);
+      const prices = chart.quote?.close != null ? { [sym]: chart.quote.close } : {};
       const decision = await decide({
-        chart, symbol, config: cfg,
-        equity: broker.equity(prices), state: broker.riskState(prices),
+        chart,
+        series: await maybeSeries(sym),
+        symbol: sym,
+        config: cfg,
+        sentimentProvider: avSentimentProvider(),
+        equity: broker.equity(prices),
+        state: broker.riskState(prices),
       });
       return ok(decision);
     } catch (e) {
@@ -325,7 +352,12 @@ server.registerTool(
       const results = await runWatchlist(
         rules.watchlist,
         (sym) => readChart(sym, rules.default_timeframe),
-        { config: cfg, equity: broker.equity(), state: broker.riskState() }
+        {
+          config: cfg,
+          sentimentProvider: avSentimentProvider(),
+          equity: broker.equity(),
+          state: broker.riskState(),
+        }
       );
       return ok({ generated_at: new Date().toISOString(), items: results });
     } catch (e) {
@@ -377,19 +409,29 @@ server.registerTool(
       "equity curve summary plus the composite fitness score (Sharpe/Sortino/return/win-rate/PF).",
     inputSchema: {
       series: z
-        .array(z.object({
-          open: z.number(), high: z.number(), low: z.number(), close: z.number(),
-        }))
+        .array(
+          z.object({
+            open: z.number(),
+            high: z.number(),
+            low: z.number(),
+            close: z.number(),
+          })
+        )
         .min(2)
         .describe("Array of OHLC bars, oldest first"),
       fast: z.number().int().positive().default(10),
       slow: z.number().int().positive().default(30),
       startCash: z.number().positive().default(100000),
+      periodsPerYear: z
+        .number()
+        .positive()
+        .default(252)
+        .describe("Bars per year for annualising Sharpe/Sortino (252=daily, 52=weekly)"),
     },
   },
-  async ({ series, fast, slow, startCash }) => {
+  async ({ series, fast, slow, startCash, periodsPerYear }) => {
     try {
-      const res = backtest(series, smaCrossStrategy(fast, slow), { startCash });
+      const res = backtest(series, smaCrossStrategy(fast, slow), { startCash, periodsPerYear });
       return ok({ finalEquity: res.finalEquity, trades: res.trades.length, fitness: res.fitness });
     } catch (e) {
       return fail(e);
@@ -401,7 +443,8 @@ server.registerTool(
   "supertrader_paper_status",
   {
     title: "Super Trader: paper account status",
-    description: "Return the current paper-trading account: cash, equity, open positions, realised P&L.",
+    description:
+      "Return the current paper-trading account: cash, equity, open positions, realised P&L.",
     inputSchema: {},
   },
   async () => {

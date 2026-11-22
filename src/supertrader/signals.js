@@ -33,8 +33,13 @@ export function technicalSignal(chart) {
 
   if (quote && quote.open != null && quote.close != null) {
     max += 1;
-    if (quote.close > quote.open) { score += 1; reasons.push("last candle closed up"); }
-    else if (quote.close < quote.open) { score -= 1; reasons.push("last candle closed down"); }
+    if (quote.close > quote.open) {
+      score += 1;
+      reasons.push("last candle closed up");
+    } else if (quote.close < quote.open) {
+      score -= 1;
+      reasons.push("last candle closed down");
+    }
   }
 
   for (const ind of indicators) {
@@ -43,13 +48,26 @@ export function technicalSignal(chart) {
     if (v == null) continue;
     if (title.includes("relative strength") || /\brsi\b/.test(title)) {
       max += 1;
-      if (v >= 55) { score += 1; reasons.push(`RSI ${v.toFixed(1)} (momentum up)`); }
-      else if (v <= 45) { score -= 1; reasons.push(`RSI ${v.toFixed(1)} (momentum down)`); }
+      if (v >= 55) {
+        score += 1;
+        reasons.push(`RSI ${v.toFixed(1)} (momentum up)`);
+      } else if (v <= 45) {
+        score -= 1;
+        reasons.push(`RSI ${v.toFixed(1)} (momentum down)`);
+      }
     }
-    if ((title.includes("moving average") || /\bema\b|\bsma\b/.test(title)) && quote?.close != null) {
+    if (
+      (title.includes("moving average") || /\bema\b|\bsma\b/.test(title)) &&
+      quote?.close != null
+    ) {
       max += 1;
-      if (quote.close > v) { score += 1; reasons.push(`price above ${ind.title}`); }
-      else if (quote.close < v) { score -= 1; reasons.push(`price below ${ind.title}`); }
+      if (quote.close > v) {
+        score += 1;
+        reasons.push(`price above ${ind.title}`);
+      } else if (quote.close < v) {
+        score -= 1;
+        reasons.push(`price below ${ind.title}`);
+      }
     }
   }
 
@@ -82,12 +100,22 @@ export function quantSignal(symbol, series, { fast = 10, slow = 30 } = {}) {
   let score = 0;
   const max = 2;
 
-  if (fastMa > slowMa) { score += 1; reasons.push(`fast MA ${fast} above slow MA ${slow}`); }
-  else if (fastMa < slowMa) { score -= 1; reasons.push(`fast MA ${fast} below slow MA ${slow}`); }
+  if (fastMa > slowMa) {
+    score += 1;
+    reasons.push(`fast MA ${fast} above slow MA ${slow}`);
+  } else if (fastMa < slowMa) {
+    score -= 1;
+    reasons.push(`fast MA ${fast} below slow MA ${slow}`);
+  }
 
   if (prevSlowMa != null) {
-    if (slowMa > prevSlowMa) { score += 0.5; reasons.push("trend rising"); }
-    else if (slowMa < prevSlowMa) { score -= 0.5; reasons.push("trend falling"); }
+    if (slowMa > prevSlowMa) {
+      score += 0.5;
+      reasons.push("trend rising");
+    } else if (slowMa < prevSlowMa) {
+      score -= 0.5;
+      reasons.push("trend falling");
+    }
   }
 
   // Distance of price from the slow MA adds conviction (bounded contribution).
@@ -109,9 +137,10 @@ export async function sentimentSignal(symbol, { provider } = {}) {
   try {
     const out = await provider(symbol);
     const raw = Math.max(-1, Math.min(1, Number(out?.score) || 0));
-    const reasons = Array.isArray(out?.reasons) && out.reasons.length
-      ? out.reasons
-      : [`sentiment score ${raw.toFixed(2)}`];
+    const reasons =
+      Array.isArray(out?.reasons) && out.reasons.length
+        ? out.reasons
+        : [`sentiment score ${raw.toFixed(2)}`];
     return scoreToSignal("sentiment", symbol, raw, 1, reasons);
   } catch (err) {
     return scoreToSignal("sentiment", symbol, 0, 1, [`sentiment provider error: ${err.message}`]);

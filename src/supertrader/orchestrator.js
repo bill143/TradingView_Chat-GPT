@@ -9,6 +9,16 @@ import { evaluateOrder } from "./risk.js";
 import { buildConfig } from "./config.js";
 
 /**
+ * Resolve the symbol to key a decision/order under. Prefer the chart's active
+ * (canonical) symbol — TradingView normalises tickers, so it can differ from
+ * what was requested — and fall back to the requested symbol.
+ */
+export function activeSymbol(chart, fallback) {
+  const s = chart?.symbol?.symbol ?? (typeof chart?.symbol === "string" ? chart.symbol : null);
+  return s || fallback || "?";
+}
+
+/**
  * Make a decision for one symbol. Pure w.r.t. inputs; does NOT execute unless a
  * `broker` is supplied and `execute` is true.
  *
@@ -23,9 +33,18 @@ import { buildConfig } from "./config.js";
  * @param {string} [args.sector]
  * @returns {Promise<object>} decision
  */
-export async function decide({ chart, series, symbol, equity, state, config, sentimentProvider, sector }) {
+export async function decide({
+  chart,
+  series,
+  symbol,
+  equity,
+  state,
+  config,
+  sentimentProvider,
+  sector,
+}) {
   const cfg = config || buildConfig();
-  const sym = symbol || chart?.symbol?.symbol || chart?.symbol || "?";
+  const sym = activeSymbol(chart, symbol);
   const price = chart?.quote?.close ?? series?.[series.length - 1]?.close ?? null;
 
   const signals = await gatherSignals({ chart, series, symbol: sym, sentimentProvider });
@@ -33,7 +52,13 @@ export async function decide({ chart, series, symbol, equity, state, config, sen
   const atr = chart ? readAtr(chart) : null;
 
   const proposed = proposeOrder({
-    symbol: sym, consensus, price, atr, equity, sizing: cfg.sizing, sector,
+    symbol: sym,
+    consensus,
+    price,
+    atr,
+    equity,
+    sizing: cfg.sizing,
+    sector,
   });
 
   let risk = null;
@@ -46,7 +71,9 @@ export async function decide({ chart, series, symbol, equity, state, config, sen
   }
 
   return {
-    symbol: sym, price, action,
+    symbol: sym,
+    price,
+    action,
     consensus,
     signals,
     proposedOrder: risk?.approved ? risk.order : proposed,
@@ -60,7 +87,8 @@ export async function decide({ chart, series, symbol, equity, state, config, sen
  */
 export async function decideAndTrade(args) {
   const { broker } = args;
-  const prices = args.chart?.quote?.close ? { [args.symbol || args.chart?.symbol?.symbol]: args.chart.quote.close } : {};
+  const sym = activeSymbol(args.chart, args.symbol);
+  const prices = args.chart?.quote?.close != null ? { [sym]: args.chart.quote.close } : {};
   const state = args.state || broker.riskState(prices);
   const equity = args.equity ?? broker.equity(prices);
   const decision = await decide({ ...args, equity, state });

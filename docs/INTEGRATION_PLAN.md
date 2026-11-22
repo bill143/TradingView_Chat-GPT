@@ -1,19 +1,19 @@
 # Super Trader — integration plan
 
-Goal: fold the strongest *patterns* from five public AI-trading repos into this
+Goal: fold the strongest _patterns_ from five public AI-trading repos into this
 TradingView MCP server, as an MIT-clean Node module that plugs into the chart
 reads we already have. We borrow **architecture and discipline**, not code, so
 there is no license contamination and no pretence of inherited "alpha".
 
 ## What we take from where
 
-| Source repo | License | What we borrow (pattern, not code) | Where it lands |
-|---|---|---|---|
-| **zhound420/swarm-trader** | MIT | Multi-agent swarm → Portfolio-Manager aggregation → **code-enforced risk rails agents can't override** → execution → benchmarking. AutoResearch fitness function. | `signals.js`, `portfolio.js`, `risk.js`, `backtest.js`, `orchestrator.js` |
-| **AI4Finance/FinGPT** | MIT | Sentiment/news signal as a first-class input. | `signals.js` → `sentimentSignal` (pluggable provider; offline stub by default) |
-| **Drakkar-Software/OctoBot** | **GPL-3.0** | *Design only* (studied, never linked/copied): paper-broker + backtest separation, exchange-style order interface. Kept as an isolated interface so this repo stays MIT. | `broker.js` (clean-room `PaperBroker`) |
-| **HKUDS/AI-Trader** | mixed | Signals carry agent identity + reasons (auditability), advisory mode. | signal shape across the engine |
-| chatgpt-trading-bot | unclear | **Dropped** — SEO/marketing-grade, nothing additive, provenance risk. | — |
+| Source repo                  | License     | What we borrow (pattern, not code)                                                                                                                                      | Where it lands                                                                 |
+| ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **zhound420/swarm-trader**   | MIT         | Multi-agent swarm → Portfolio-Manager aggregation → **code-enforced risk rails agents can't override** → execution → benchmarking. AutoResearch fitness function.       | `signals.js`, `portfolio.js`, `risk.js`, `backtest.js`, `orchestrator.js`      |
+| **AI4Finance/FinGPT**        | MIT         | Sentiment/news signal as a first-class input.                                                                                                                           | `signals.js` → `sentimentSignal` (pluggable provider; offline stub by default) |
+| **Drakkar-Software/OctoBot** | **GPL-3.0** | _Design only_ (studied, never linked/copied): paper-broker + backtest separation, exchange-style order interface. Kept as an isolated interface so this repo stays MIT. | `broker.js` (clean-room `PaperBroker`)                                         |
+| **HKUDS/AI-Trader**          | mixed       | Signals carry agent identity + reasons (auditability), advisory mode.                                                                                                   | signal shape across the engine                                                 |
+| chatgpt-trading-bot          | unclear     | **Dropped** — SEO/marketing-grade, nothing additive, provenance risk.                                                                                                   | —                                                                              |
 
 ## Architecture
 
@@ -46,7 +46,7 @@ chart_read / OHLC series
    live adapter is a future drop-in behind the same interface.
 3. **Every signal is auditable.** Each carries `agent`, `confidence`, `reasons`.
 4. **Honesty.** Signals are heuristic and the sentiment agent is a stub until a
-   real FinGPT/provider is wired. This is a disciplined *platform*, not proven edge.
+   real FinGPT/provider is wired. This is a disciplined _platform_, not proven edge.
 
 ## Modules
 
@@ -71,4 +71,3 @@ chart_read / OHLC series
 `node --test` (built-in, no new deps). Deterministic, fully offline: risk rules,
 aggregation, sizing, paper broker fills/P&L, backtest fitness, and an end-to-end
 orchestrator decision. `npm test` must pass.
-</invoke>
