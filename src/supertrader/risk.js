@@ -33,9 +33,11 @@ export function evaluateOrder(order, state, risk) {
   const equity = state.equity;
   const pos = state.positions?.[order.symbol];
 
-  // A "sell" that only reduces/closes an existing long is always risk-reducing.
+  // Risk-reducing = trading against an existing position: a sell that reduces a
+  // long, or a buy that covers a short. Both only shrink exposure, so they skip
+  // the breakers and caps below.
   const isReducing =
-    order.side === "sell" && pos && pos.qty > 0;
+    (order.side === "sell" && pos && pos.qty > 0) || (order.side === "buy" && pos && pos.qty < 0);
 
   if (!isReducing) {
     // --- Circuit breakers (block all new risk) -------------------------------
@@ -55,14 +57,14 @@ export function evaluateOrder(order, state, risk) {
       if (order.stop == null) {
         violations.push("missing mandatory stop loss");
       } else {
-        const valid =
-          order.side === "buy" ? order.stop < order.price : order.stop > order.price;
+        const valid = order.side === "buy" ? order.stop < order.price : order.stop > order.price;
         if (!valid) {
           violations.push("stop loss is on the wrong side of entry");
         } else {
           const dist = Math.abs(order.price - order.stop) / order.price;
           if (dist < risk.minStopDistancePct) violations.push("stop too tight");
-          if (dist > risk.maxStopDistancePct) violations.push("stop too wide (per-trade risk too high)");
+          if (dist > risk.maxStopDistancePct)
+            violations.push("stop too wide (per-trade risk too high)");
         }
       }
     }
@@ -85,16 +87,17 @@ export function evaluateOrder(order, state, risk) {
     // Per-position notional cap.
     const maxPosNotional = risk.maxPositionPct * equity;
     const existing = notional(pos, order.price);
-    caps.push(("posCap"), Math.floor(Math.max(0, maxPosNotional - existing) / order.price));
+    caps.push("posCap", Math.floor(Math.max(0, maxPosNotional - existing) / order.price));
 
-    // Total exposure cap.
-    const room = risk.maxTotalExposurePct * equity - totalExposure(state, () => order.price);
-    caps.push(("expCap"), Math.floor(Math.max(0, room) / order.price));
+    // Total exposure cap. Existing holdings are valued at their own average
+    // price (not the incoming order's price); the order adds new notional on top.
+    const room = risk.maxTotalExposurePct * equity - totalExposure(state);
+    caps.push("expCap", Math.floor(Math.max(0, room) / order.price));
 
     // Cash reserve cap (only buys consume cash in this sim).
     if (order.side === "buy") {
       const spendable = state.cash - risk.cashReservePct * equity;
-      caps.push(("cashCap"), Math.floor(Math.max(0, spendable) / order.price));
+      caps.push("cashCap", Math.floor(Math.max(0, spendable) / order.price));
     }
 
     // Per-sector cap (optional).
@@ -102,9 +105,12 @@ export function evaluateOrder(order, state, risk) {
       const maxSectorNotional = risk.maxSectorPct * equity;
       let sectorNotional = 0;
       for (const p of Object.values(state.positions || {})) {
-        if (p.sector === order.sector) sectorNotional += notional(p, order.price);
+        if (p.sector === order.sector) sectorNotional += notional(p); // at each position's own avg price
       }
-      caps.push(("sectorCap"), Math.floor(Math.max(0, maxSectorNotional - sectorNotional) / order.price));
+      caps.push(
+        "sectorCap",
+        Math.floor(Math.max(0, maxSectorNotional - sectorNotional) / order.price)
+      );
     }
 
     // caps is [label, value, label, value, ...]; reduce to the binding limit.
@@ -117,7 +123,10 @@ export function evaluateOrder(order, state, risk) {
       // Identify which cap bound it to zero for a useful reason.
       let label = "position/exposure/cash limits";
       for (let i = 0; i < caps.length; i += 2) {
-        if (caps[i + 1] <= 0) { label = String(caps[i]); break; }
+        if (caps[i + 1] <= 0) {
+          label = String(caps[i]);
+          break;
+        }
       }
       return {
         approved: false,
@@ -138,8 +147,8 @@ export function evaluateOrder(order, state, risk) {
     };
   }
 
-  // Risk-reducing sell: cap to the position size, always allowed.
-  const adjustedQty = Math.min(order.qty, pos.qty);
+  // Risk-reducing trade: cap to the (absolute) position size, always allowed.
+  const adjustedQty = Math.min(order.qty, Math.abs(pos.qty));
   return {
     approved: true,
     adjustedQty,

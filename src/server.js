@@ -31,7 +31,7 @@ import { buildConfig } from "./supertrader/config.js";
 import { PaperBroker } from "./supertrader/broker.js";
 import { evaluateOrder } from "./supertrader/risk.js";
 import { backtest, smaCrossStrategy } from "./supertrader/backtest.js";
-import { decide, runWatchlist } from "./supertrader/orchestrator.js";
+import { decide, runWatchlist, activeSymbol } from "./supertrader/orchestrator.js";
 import { PAPER_STATE_PATH } from "./config.js";
 
 const server = new McpServer({
@@ -296,10 +296,15 @@ server.registerTool(
       const cfg = traderConfig(rules);
       const broker = PaperBroker.load(PAPER_STATE_PATH);
       const chart = await readChart(symbol, timeframe || rules.default_timeframe);
-      const prices = chart.quote?.close ? { [symbol]: chart.quote.close } : {};
+      // TradingView may normalise the ticker; key everything by the active symbol.
+      const sym = activeSymbol(chart, symbol);
+      const prices = chart.quote?.close != null ? { [sym]: chart.quote.close } : {};
       const decision = await decide({
-        chart, symbol, config: cfg,
-        equity: broker.equity(prices), state: broker.riskState(prices),
+        chart,
+        symbol: sym,
+        config: cfg,
+        equity: broker.equity(prices),
+        state: broker.riskState(prices),
       });
       return ok(decision);
     } catch (e) {
@@ -377,19 +382,29 @@ server.registerTool(
       "equity curve summary plus the composite fitness score (Sharpe/Sortino/return/win-rate/PF).",
     inputSchema: {
       series: z
-        .array(z.object({
-          open: z.number(), high: z.number(), low: z.number(), close: z.number(),
-        }))
+        .array(
+          z.object({
+            open: z.number(),
+            high: z.number(),
+            low: z.number(),
+            close: z.number(),
+          })
+        )
         .min(2)
         .describe("Array of OHLC bars, oldest first"),
       fast: z.number().int().positive().default(10),
       slow: z.number().int().positive().default(30),
       startCash: z.number().positive().default(100000),
+      periodsPerYear: z
+        .number()
+        .positive()
+        .default(252)
+        .describe("Bars per year for annualising Sharpe/Sortino (252=daily, 52=weekly)"),
     },
   },
-  async ({ series, fast, slow, startCash }) => {
+  async ({ series, fast, slow, startCash, periodsPerYear }) => {
     try {
-      const res = backtest(series, smaCrossStrategy(fast, slow), { startCash });
+      const res = backtest(series, smaCrossStrategy(fast, slow), { startCash, periodsPerYear });
       return ok({ finalEquity: res.finalEquity, trades: res.trades.length, fitness: res.fitness });
     } catch (e) {
       return fail(e);
@@ -401,7 +416,8 @@ server.registerTool(
   "supertrader_paper_status",
   {
     title: "Super Trader: paper account status",
-    description: "Return the current paper-trading account: cash, equity, open positions, realised P&L.",
+    description:
+      "Return the current paper-trading account: cash, equity, open positions, realised P&L.",
     inputSchema: {},
   },
   async () => {
