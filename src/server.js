@@ -32,6 +32,7 @@ import { PaperBroker } from "./supertrader/broker.js";
 import { evaluateOrder } from "./supertrader/risk.js";
 import { backtest, smaCrossStrategy } from "./supertrader/backtest.js";
 import { decide, runWatchlist, activeSymbol } from "./supertrader/orchestrator.js";
+import { newsSentimentProvider, fetchDailySeries } from "./supertrader/providers/alphavantage.js";
 import { PAPER_STATE_PATH } from "./config.js";
 
 const server = new McpServer({
@@ -278,6 +279,25 @@ function traderConfig(rules) {
   return buildConfig(rules?.supertrader || {});
 }
 
+// Live sentiment provider when an Alpha Vantage key is configured; otherwise the
+// sentiment agent abstains (offline stub).
+function avSentimentProvider() {
+  return process.env.ALPHAVANTAGE_API_KEY ? newsSentimentProvider() : undefined;
+}
+
+// Optional real daily OHLC history for the quant agent / ATR fallback. Gated
+// behind a flag to conserve Alpha Vantage's request quota (free tier is small).
+async function maybeSeries(symbol) {
+  if (!process.env.ALPHAVANTAGE_API_KEY || process.env.SUPERTRADER_FETCH_SERIES !== "1") {
+    return undefined;
+  }
+  try {
+    return await fetchDailySeries(symbol);
+  } catch {
+    return undefined; // data is best-effort; fall back to chart-only signals
+  }
+}
+
 server.registerTool(
   "supertrader_decide",
   {
@@ -301,8 +321,10 @@ server.registerTool(
       const prices = chart.quote?.close != null ? { [sym]: chart.quote.close } : {};
       const decision = await decide({
         chart,
+        series: await maybeSeries(sym),
         symbol: sym,
         config: cfg,
+        sentimentProvider: avSentimentProvider(),
         equity: broker.equity(prices),
         state: broker.riskState(prices),
       });
@@ -330,7 +352,12 @@ server.registerTool(
       const results = await runWatchlist(
         rules.watchlist,
         (sym) => readChart(sym, rules.default_timeframe),
-        { config: cfg, equity: broker.equity(), state: broker.riskState() }
+        {
+          config: cfg,
+          sentimentProvider: avSentimentProvider(),
+          equity: broker.equity(),
+          state: broker.riskState(),
+        }
       );
       return ok({ generated_at: new Date().toISOString(), items: results });
     } catch (e) {
